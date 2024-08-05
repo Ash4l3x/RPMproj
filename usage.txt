@@ -1,0 +1,8 @@
+pip install tkinter
+pip install pyserial
+pip install serial
+
+threading, sys should be included in py 3+
+
+in tk_interface, function main, change port to desired one (COMMS=START_COM("COM5", 115200))
+

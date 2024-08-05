@@ -1,0 +1,146 @@
+RMK3B sensor
+magnet
+stroboscop
+motor dc
+
+1. senzor RMK3B (ss pinassg.png)
+    - alimentare 5v , pin vdd
+    - gnd, pin vss
+    - output analogic, sin si cos
+
+2. stroboscop
+    - alimentare 5v, green wire
+    - gnd, orange wire
+    - pwm signal, white wire
+    - stroboscopul preia de la pinul 13 un semnal de tip pwm care porneste si opreste led-urile , astfel incat la frecventa potrivita, acestea reflecta lumina de pe punctele pictate pe motor
+        , ceea ce creaza o iluzia optica in care punctele par sa "stea" pe loc
+
+3. motorul dc
+    - controlat prin pwm de la pinul nr 9
+    - 4 trepte de viteza
+
+variabile:
+
+###############################################  START
+const int inputPin = 7;                                // preia semnalul sin/cos de la senzorul RMK3B
+const int outputPin = 13;                              // semanlul pwm pentru stroboscop, output
+const int pwmPin = 9;                                  // semnal pwm pentru motor, output                        
+
+String option = "";                                    // la intrarea in loop, programul asteapta introducerea unei comenzi ce va fi stocata in aceasta variabila
+
+int count = 0;                                         // variabila count va fi incrementata cu 1 de fiecare data cand semanlul cos/sin de la senzorul RMK3b va trece din low in high (o rotatie a magnetului)
+unsigned long previousMillis = 0;                      // variabila ce stocheaza timpul curent, folosita pentru a numara impulsurile pe durata unnei singure secunde
+int aux = 0;                                           // variabila aux este setat in 1 de fiecare data cand semanlul provenit de la senzorul RMK3b este interpretat ca high, pentru a numara fiecare citire o singura data. cand semnalul trece in low, acesta estre resetat din nou la 0
+
+
+int measure_values_count = 0;                           // numarul de valori returnate de functia de numarare pentru senzorul rmk3b (cate secunde dorim sa masuram)
+int set_freq = 0;                                       // variabila care este setata in 1 atat timp cat dorim sa trimitem semnal pentru stroboscop
+float given_freq = 0;                                   // frecventa citita de pe portul de comunicare seriala (SI)
+float last_freq = 11;                                   // frecventa initiala data stroboscopului(11HZ). Stroboscopul incepe cu aceasta frecventza. Daca o noua valoare este introdusa pe Si, aceasta este stocata in aceasta variabila, 
+                                                                    , iar iar daca nu se da o noua valoare, stroboscoupul va folosi ultima valoare, stocata in aceasta variabila
+                                                                
+String given_freq_string = "10";                        // Variabila de tip string, in care va fi stocat mesajul primit pe SI
+
+float pulse_width =1;                                   // variabila ce stocheaza latimea unui impuls in microsecunde
+unsigned long pulse_width_int =1;                       // variabila de tip unsigne long, folosita pentru a putea folosi functia delayMicrosecconds
+unsigned long stay_off_time = 1;                        // valoare in microsecunde pentru care ledurile strboscopului sunt aprinse
+unsigned long stay_on_time = 1;                         // same stuff, pentru leduri stinse
+
+unsigned long currentMillis = 0;                        // variabhila folosita pentru a masura intervalul de 1 secunda, pentru a calcula corect lungimea impulsui pentru stroboscop
+################################################### END
+
+################################################### START
+void setup() {
+  Serial.begin(115200);
+  pinMode(inputPin, INPUT);
+  pinMode(outputPin, OUTPUT);
+  digitalWrite(outputPin, LOW);
+  pinMode(pwmPin, OUTPUT);
+  analogWrite(pwmPin, 0);
+}
+
+se seteaza modul de functionare a pinilor, pinii de pwm pentru motor si stroboscop sunt setati in low/0
+################################################### END
+
+
+################################################### START
+
+void loop() {
+  read_option();
+}
+
+in functia loop se apeleaza o singura functie: read_option();
+
+################################################### END
+
+################################################### START
+
+void read_option() {
+  Serial.println("Option: ");
+  while (Serial.available() == 0) {}
+  option = Serial.readStringUntil('\n');
+  if (option == "measure") {
+    measure_values_count = 0;
+    measure_function();
+  }
+  if (option == "start_s") {
+    set_freq = 1;
+    read_desired_freq();
+  }
+  if (option == "speed1") {
+    analogWrite(pwmPin, 255);
+    delay(1000);
+    analogWrite(pwmPin, 100);
+  }
+  if (option == "speed2") {
+    analogWrite(pwmPin, 255);
+    delay(1000);
+    analogWrite(pwmPin, 150);
+  }
+  if (option == "speed3") {
+    analogWrite(pwmPin, 255);
+    delay(1000);
+    analogWrite(pwmPin, 200);
+  }
+  if (option == "speed4") {
+    analogWrite(pwmPin, 255);
+  }
+  if (option == "speed0") {
+    analogWrite(pwmPin, 0);
+  }
+}
+
+ in aceasta functie citim de pe SI un mesaj, ceea ce determina ce functie este apelata:
+    7 instruciuni posibile (daca sirul de caractere nu se potriveste cu una din cele 7 instruciuni posibile, functia se repeta pana cand se introduce o instruciune corecta)
+    - measure   porneste masurarea cu senzorul RMK3B , care va dura ~11secunde
+    - start_s   porneste stroboscopul
+    - spped1    seteaza viteza motorului
+    - speed2    same
+    - speed3       same
+    - speed4        same
+    - speed0    opreste motorul
+
+################################################### END
+
+void measure_function() {
+  while (measure_values_count < 11) {
+    currentMillis = millis();
+    if (digitalRead(inputPin) == HIGH && aux == 0) {
+      aux = 1;
+      count++;
+    }
+    if (digitalRead(inputPin) == LOW && aux == 1) {
+      aux = 0;
+    }
+    if (currentMillis - previousMillis >= 1000) {
+      Serial.println(count);
+      previousMillis = 0;
+      count = 0;
+      previousMillis = currentMillis;
+      measure_values_count += 1;
+    }
+  }
+}
+
+ cand instructiunea "measure" este introdusa, variabila measure_values_count este setata in 0;
+
